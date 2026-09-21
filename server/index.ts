@@ -5,8 +5,9 @@ import { z } from 'zod'
 import { MockAIGateway, MockOraGateway } from './modules/aiGateway.js'
 import { educationalAlerts } from './modules/alerts.js'
 import { calculateAnalytics } from './modules/analytics.js'
-import { createMarketDataProvider } from './modules/marketData.js'
+import { createMarketDataProvider, MockMarketDataProvider } from './modules/marketData.js'
 import { runBacktest } from './modules/backtest.js'
+import { calculatePortfolio, type PortfolioPosition } from './modules/portfolio.js'
 import { assessRisk } from './modules/riskEngine.js'
 import { DisabledTradeExecutionGateway } from './modules/tradeGateway.js'
 
@@ -22,6 +23,8 @@ const tradeGateway = new DisabledTradeExecutionGateway()
 const chatSchema = z.object({ message: z.string().trim().min(1).max(2000), context: z.array(z.string().max(500)).max(10).optional(), capability: z.enum(['investor', 'developer']).optional() }).strict()
 const orderSchema = z.object({ symbol: z.string().regex(/^[A-Z][A-Z0-9]{3,5}$/), side: z.enum(['buy', 'sell']), quantity: z.number().int().positive().max(1_000_000), price: z.number().finite().positive().max(10_000), stopPrice: z.number().finite().positive().max(10_000).optional() }).strict()
 const candlesSchema = z.array(z.object({ timestamp: z.string().datetime(), close: z.number().finite().positive() })).min(1).max(10_000)
+const positionSchema = z.object({ symbol: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/), quantity: z.number().finite().positive().max(1_000_000), averagePrice: z.number().finite().positive().max(100_000), currency: z.enum(['BRL', 'USD']) }).strict()
+const portfolioSchema = z.object({ positions: z.array(positionSchema).max(100) }).strict()
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', environment: process.env.NODE_ENV ?? 'development', mode: 'simulation-only', providers: { ai: process.env.AI_PROVIDER ?? 'mock', marketData: process.env.MARKET_DATA_PROVIDER ?? 'mock', tradeExecution: 'disabled' } }))
 app.get('/api/market/overview', async (_req, res, next) => { try { const data = await marketData.overview(); res.json({ asOf: new Date().toISOString(), source: data[0]?.source ?? 'mock', simulated: data.some((quote) => quote.simulated), data }) } catch (error) { next(error) } })
@@ -32,6 +35,7 @@ app.post('/api/simulations/orders', (req, res) => { const parsed = orderSchema.s
 app.post('/api/trade/submit', async (req, res) => { const parsed = orderSchema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Ordem inválida.', details: parsed.error.flatten().fieldErrors }); res.status(403).json(await tradeGateway.submit(parsed.data, { actorId: 'anonymous', permissions: [] })) })
 app.post('/api/analytics', (req, res) => { const parsed = z.object({ candles: candlesSchema }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Série inválida.' }); res.json({ simulated: true, data: calculateAnalytics(parsed.data.candles) }) })
 app.post('/api/backtests', (req, res) => { const parsed = z.object({ candles: candlesSchema, initialCapital: z.number().finite().positive().max(100_000_000), quantity: z.number().finite().positive().max(1_000_000) }).safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: 'Parâmetros de backtest inválidos.' }); res.json(runBacktest(parsed.data)) })
+app.post('/api/portfolio/valuation', async (_req, res, next) => { try { const parsed = portfolioSchema.safeParse(_req.body); if (!parsed.success) return res.status(400).json({ error: 'Carteira inválida.', details: parsed.error.flatten().fieldErrors }); const quotes = await marketData.overview(); res.json({ asOf: new Date().toISOString(), simulated: quotes.some((quote) => quote.simulated), source: quotes.map((quote) => quote.source).filter((value, index, all) => all.indexOf(value) === index), positions: calculatePortfolio(parsed.data.positions as PortfolioPosition[], quotes) }) } catch (error) { next(error) } })
 app.get('/api/knowledge/status', (_req, res) => res.json({ mode: 'prepared', indexedDocuments: 0, retrieval: 'not-configured', simulated: true, message: 'Nenhum documento foi ingerido; respostas não usam RAG.' }))
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada.' }))
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error('api_error', error); res.status(500).json({ error: 'Erro interno. Tente novamente.' }) })
