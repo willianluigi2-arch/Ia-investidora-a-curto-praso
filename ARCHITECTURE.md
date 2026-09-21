@@ -1,55 +1,37 @@
 # Arquitetura
 
-## Visão geral
-
-O projeto usa TypeScript com duas fronteiras:
+## Fronteiras
 
 ```text
-React/Vite (porta 5173)
-        |
-        | /api via proxy
-        v
-Express/TypeScript (porta 8787)
-        |
-        +-- AI Gateway
-        +-- Market Data
-        +-- Alerts
-        +-- Simulation / Risk (próxima camada)
-        +-- Persistence (a implementar)
+React/Vite :5173 -- /api proxy --> Express :8787
+                                      |
+        +-- AI Gateway (mock explícito; adapter futuro ORA)
+        +-- Market Data (mock explícito; fonte licenciada futura)
+        +-- Analytics / Analysis Engine
+        +-- Risk Engine (limites antes de simulação)
+        +-- Paper simulations / Backtests
+        +-- Alerts (educacionais)
+        +-- Knowledge status (RAG preparado, sem ingestão)
 ```
 
-O cliente mantém a experiência e o estado efêmero da sessão. O servidor é o único lugar autorizado a falar com provedores externos e secrets. Os contratos são validados na entrada antes de qualquer operação.
+`src/App.tsx` mantém a composição visual e estado efêmero. `server/index.ts` é a fronteira HTTP: valida entradas com Zod, chama módulos de domínio e nunca expõe secrets ao browser. Módulos de domínio não importam React e podem ser testados isoladamente.
 
-## Estrutura
+## Contratos e honestidade de dados
 
-- `src/App.tsx`: composição da aplicação e telas principais.
-- `src/styles.css`: tokens visuais, componentes e breakpoints responsivos.
-- `server/index.ts`: bootstrap HTTP, rotas e middleware.
-- `server/modules/marketData.ts`: contrato e implementação mock de cotações.
-- `server/modules/aiGateway.ts`: contrato para trocar o motor de IA.
-- `server/modules/alerts.ts`: alertas educacionais.
-- `server/modules/validation.test.ts`: contratos de entrada.
+`MarketDataProvider` e `AIGateway` são ports. Os adapters mock retornam `source: mock`, `provider: mock` e `simulated: true`. Qualquer provider real deve validar payload externo, registrar `asOf`, respeitar licença, timeout e indisponibilidade, e manter o mesmo contrato.
 
-## Módulos de domínio
-
-**Market Data** normaliza cotações e timestamps por meio de `MarketDataProvider`. Um adaptador real deve lidar com limites, indisponibilidade, cache e licença do dado.
-
-**Analytics / Analysis Engine** será responsável por indicadores, séries temporais, cenários e explicações. Deve receber dados normalizados, nunca credenciais ou componentes de apresentação.
-
-**Risk Engine** deve calcular tamanho de posição, exposição, stop, drawdown e limites antes de uma simulação ser registrada.
-
-**Alerts / Notifications** devem separar regra de detecção, preferência do usuário e entrega. Alertas são educacionais e precisam registrar origem, timestamp e severidade.
-
-**Knowledge / RAG** deverá receber arquivos e links, extrair texto, gerar chunks e embeddings, recuperar contexto por consulta e anexar referências à resposta. O texto recuperado deve ser tratado como dado não confiável.
-
-**AI Gateway** abstrai o provedor. A implementação futura deve aplicar timeout, retry limitado, redaction de dados sensíveis, limite de custo e logging sem armazenar secrets.
-
-**Audit** deve registrar ator, ação, recurso, resultado e timestamp para alterações de contexto e simulações. Ordens reais permanecem fora do escopo.
-
-## Dados e persistência planejada
-
-PostgreSQL é a opção recomendada para usuários, sessões, documentos, mensagens, portfolios virtuais, ordens paper e eventos de auditoria. Um storage de objetos deve guardar arquivos originais. Redis pode ser adicionado para cache e filas, sem virar fonte de verdade.
+`analytics.ts` calcula retorno, máxima, mínima e volatilidade sobre uma série fornecida pelo usuário. `riskEngine.ts` calcula risco monetário, exposição, quantidade sugerida e rejeita limites básicos. `backtest.ts` é uma simulação buy-and-hold deliberadamente simples; não deve ser chamado de resultado histórico real sem candles versionados e custos configurados.
 
 ## Segurança
 
-Validação ocorre com Zod, CORS é restrito por `CLIENT_ORIGIN`, limites de corpo evitam payloads grandes e a API não expõe variáveis de ambiente. Antes de produção ainda serão necessários autenticação, autorização por workspace, rate limiting, headers de segurança, observabilidade e revisão de retenção de dados.
+- Secrets somente no backend via `.env`; nunca em `src`.
+- CORS limitado a `CLIENT_ORIGIN` e body JSON limitado a 256 KB.
+- Schemas Zod estritos, números finitos e limites de quantidade/tamanho.
+- Nenhuma rota de corretora ou ordem real existe.
+- Erros internos não vazam stack trace ao cliente; logs do servidor não incluem payloads completos.
+
+Antes de produção ainda são necessários autenticação, autorização por workspace, rate limiting, headers de segurança, observabilidade, auditoria persistente, retenção de dados, CSRF conforme mecanismo de sessão e revisão de compliance.
+
+## Preparação para ORA e RAG
+
+ORA deve entrar somente como implementação de `AIGateway`, atrás de feature flag e avaliação offline. O gateway deverá receber contexto já redigido, aplicar timeout/retry limitado e devolver referências e origem. RAG requer ingestão segura, extração, chunking, embeddings, busca com filtros de workspace e citações; texto recuperado é dado não confiável e nunca instrução de sistema.

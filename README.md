@@ -1,50 +1,48 @@
 # IA Investidora — Desenvolvimento a Curto Prazo
 
-Workspace educacional para leitura de mercado, análise assistida por IA e simulação de operações. O produto apoia decisões conscientes no curto prazo sem enviar ordens reais para corretoras.
+Workspace educacional para análise de mercado, explicações assistidas e simulações. **Não envia ordens reais, não se conecta a corretoras e não apresenta dados mock como dados ao vivo.**
 
-## O que já funciona
+## Estado atual
 
-- Assistente de IA com histórico de conversa, sugestões e favoritos.
-- Visão geral com indicadores, gráfico intraday, radar de ativos e insights.
-- Área de análises com viés, confiança, checklist e score de risco.
-- Paper trading com compra/venda simulada, carteira virtual e histórico.
-- Knowledge Center com materiais indexados visualmente e estado de contexto/RAG.
-- Central de notificações e alertas educacionais.
-- API com validação Zod para chat e ordens simuladas.
-- Interfaces `MarketDataProvider` e `AIGateway` prontas para provedores reais.
+A branch `audit/hardening` mantém React/Vite no cliente e Express/TypeScript no servidor. O baseline possui telas de chat, visão geral, análises, paper trading e Knowledge Center; esta evolução adiciona contratos de domínio para risco, analytics e backtesting, além de metadados explícitos de simulação e erros HTTP consistentes.
 
-## Requisitos
-
-- Node.js 20 ou superior
-- npm 10 ou superior
-
-## Instalação e execução
+## Executar no Codespace
 
 ```bash
 cp .env.example .env
-npm install
+npm ci
 npm run dev
 ```
 
-O cliente inicia em `http://localhost:5173` e a API em `http://localhost:8787`. No Codespace, encaminhe a porta 5173 para abrir a aplicação. O proxy do Vite encaminha `/api` para o servidor local.
+Cliente: `http://localhost:5173` · API: `http://localhost:8787`. O proxy Vite encaminha `/api` para a API.
 
-## Scripts
+## Verificação
 
-| Comando | Uso |
-| --- | --- |
-| `npm run dev` | Inicia cliente e API em modo desenvolvimento |
-| `npm run build` | Gera o cliente em `dist` e o servidor em `dist-server` |
-| `npm run start` | Executa o servidor compilado |
-| `npm run lint` | Executa ESLint sem warnings |
-| `npm run typecheck` | Valida tipos do cliente e servidor |
-| `npm run test` | Executa os testes Vitest |
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+curl http://localhost:8787/api/health
+curl http://localhost:8787/api/market/overview
+curl -X POST http://localhost:8787/api/ai/chat -H 'content-type: application/json' -d '{"message":"Como estudar risco?"}'
+```
 
-## Segurança e limites atuais
+Os comandos devem ser executados no Codespace; esta integração não possui shell para executar processos. Smoke tests adicionais: `GET /api/alerts`, `GET /api/knowledge/status`, `POST /api/analytics`, `POST /api/backtests` e `POST /api/simulations/orders`.
 
-O `.env` é ignorado pelo Git e `.env.example` documenta apenas nomes de variáveis. A chave de IA, quando existir, deve ser consumida exclusivamente pelo backend. O modo atual usa dados e respostas mock; não há integração com corretora, envio de ordem real, recomendação personalizada ou garantia de retorno financeiro.
+## Limites honestos
 
-## Próximos incrementos
+- Market Data e AI usam adapters `mock` e retornam `simulated: true`.
+- Paper trading é validação de intenção e cálculo; não há persistência, matching real, saldo confiável ou corretora.
+- RAG está preparado por contrato, mas não há ingestão, OCR, embeddings, vector store ou documentos indexados.
+- Favoritos, histórico e notificações continuam estado efêmero do React até uma camada de persistência/autenticação.
+- Não há recomendação personalizada, promessa de retorno ou operação financeira real.
 
-Persistir usuários, conversas, documentos, embeddings, simulações e auditoria em PostgreSQL; conectar um provedor de dados licenciado; implementar fila para ingestão de documentos; e substituir `MockAIGateway` por um adaptador seguro para o provedor escolhido, incluindo a futura IA Desenvolvedora ORA.
+## Como outra IA assume o projeto
 
-Mais detalhes estão em [ARCHITECTURE.md](ARCHITECTURE.md) e [DEVELOPMENT.md](DEVELOPMENT.md).
+1. Leia `ARCHITECTURE.md` e `DEVELOPMENT.md`.
+2. Preserve `MarketDataProvider`, `AIGateway`, os metadados `simulated` e o bloqueio de operações reais.
+3. Antes de integrar ORA, crie um adapter versionado para `AIGateway`, feature flag, timeout, limites de custo, redaction e testes offline.
+4. Adicione persistência/migrações antes de afirmar que histórico, paper trading ou Knowledge Center são permanentes.
+5. Use dados históricos licenciados e versionados para backtests; nunca substitua a origem por números inventados.
+6. Abra PRs pequenos na branch de trabalho e não faça merge automático em `main`.
