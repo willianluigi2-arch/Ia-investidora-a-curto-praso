@@ -5,11 +5,12 @@ Workspace educacional para leitura de mercado, análise assistida por IA e simul
 ## O que já funciona
 
 - Assistente de IA com histórico de conversa, sugestões e favoritos.
-- Visão geral com indicadores, gráfico intraday, radar de ativos e insights.
+- Visão geral com indicadores, gráfico intraday, radar de ativos e insights carregados do endpoint de mercado mock.
 - Área de análises com viés, confiança, checklist e score de risco.
-- Paper trading com compra/venda simulada, carteira virtual e histórico.
-- Knowledge Center com materiais indexados visualmente e estado de contexto/RAG.
-- Central de notificações e alertas educacionais.
+- Paper trading com compra/venda simulada validada pelo backend, carteira virtual e histórico demonstrativo.
+- Backtesting com duas estratégias sobre uma série sintética, métricas de retorno, drawdown e operações.
+- Knowledge Center com catálogo visual de fontes e estado de contexto; ingestão persistente e embeddings ainda não estão habilitados.
+- Central de notificações alimentada pelo endpoint de alertas educacionais.
 - API com validação Zod para chat e ordens simuladas.
 - Interfaces `MarketDataProvider` e `AIGateway` prontas para provedores reais.
 
@@ -41,10 +42,10 @@ O cliente inicia em `http://localhost:5173` e a API em `http://localhost:8787`. 
 
 ## Segurança e limites atuais
 
-O `.env` é ignorado pelo Git e `.env.example` documenta apenas nomes de variáveis. A chave de IA, quando existir, deve ser consumida exclusivamente pelo backend. O modo atual usa dados e respostas mock; não há integração com corretora, envio de ordem real, recomendação personalizada ou garantia de retorno financeiro.
+O `.env` é ignorado pelo Git e `.env.example` documenta apenas nomes de variáveis. A chave de IA, quando existir, deve ser consumida exclusivamente pelo backend. O modo atual usa dados, backtesting e respostas mock; não há integração com corretora, envio de ordem real, persistência de documentos, recomendação personalizada ou garantia de retorno financeiro. A interface identifica o mercado como dados simulados.
 
 ## Próximos incrementos
 
-Persistir usuários, conversas, documentos, embeddings, simulações e auditoria em PostgreSQL; conectar um provedor de dados licenciado; implementar fila para ingestão de documentos; e substituir `MockAIGateway` por um adaptador seguro para o provedor escolhido, incluindo a futura IA Desenvolvedora ORA.
+Persistir usuários, conversas, documentos, embeddings, simulações e auditoria em PostgreSQL; implementar ingestão real de textos, PDFs e imagens; conectar um provedor de dados licenciado; e substituir `MockAIGateway` por um adaptador seguro para o provedor escolhido, incluindo a futura IA Desenvolvedora ORA.
 
 Mais detalhes estão em [ARCHITECTURE.md](ARCHITECTURE.md) e [DEVELOPMENT.md](DEVELOPMENT.md).

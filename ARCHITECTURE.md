@@ -14,7 +14,8 @@ Express/TypeScript (porta 8787)
         +-- AI Gateway
         +-- Market Data
         +-- Alerts
-        +-- Simulation / Risk (próxima camada)
+        +-- Simulation / Risk
+        +-- Backtesting (série sintética)
         +-- Persistence (a implementar)
 ```
 
@@ -28,6 +29,7 @@ O cliente mantém a experiência e o estado efêmero da sessão. O servidor é o
 - `server/modules/marketData.ts`: contrato e implementação mock de cotações.
 - `server/modules/aiGateway.ts`: contrato para trocar o motor de IA.
 - `server/modules/alerts.ts`: alertas educacionais.
+- `server/modules/backtesting.ts`: validação e execução determinística de backtests simulados.
 - `server/modules/validation.test.ts`: contratos de entrada.
 
 ## Módulos de domínio
@@ -40,7 +42,7 @@ O cliente mantém a experiência e o estado efêmero da sessão. O servidor é o
 
 **Alerts / Notifications** devem separar regra de detecção, preferência do usuário e entrega. Alertas são educacionais e precisam registrar origem, timestamp e severidade.
 
-**Knowledge / RAG** deverá receber arquivos e links, extrair texto, gerar chunks e embeddings, recuperar contexto por consulta e anexar referências à resposta. O texto recuperado deve ser tratado como dado não confiável.
+**Knowledge / RAG** hoje expõe apenas a superfície visual do catálogo. A ingestão de arquivos, extração de texto, chunks, embeddings e recuperação ainda devem ser implementados antes de a interface afirmar que uma fonte foi indexada.
 
 **AI Gateway** abstrai o provedor. A implementação futura deve aplicar timeout, retry limitado, redaction de dados sensíveis, limite de custo e logging sem armazenar secrets.
 
@@ -48,7 +50,7 @@ O cliente mantém a experiência e o estado efêmero da sessão. O servidor é o
 
 ## Dados e persistência planejada
 
-PostgreSQL é a opção recomendada para usuários, sessões, documentos, mensagens, portfolios virtuais, ordens paper e eventos de auditoria. Um storage de objetos deve guardar arquivos originais. Redis pode ser adicionado para cache e filas, sem virar fonte de verdade.
+Hoje os dados de mercado, alertas e respostas são mock e as ordens/backtests não são persistidos. PostgreSQL é a opção recomendada para usuários, sessões, documentos, mensagens, portfolios virtuais, ordens paper, resultados de backtest e eventos de auditoria. Um storage de objetos deve guardar arquivos originais. Redis pode ser adicionado para cache e filas, sem virar fonte de verdade.
 
 ## Segurança
 
