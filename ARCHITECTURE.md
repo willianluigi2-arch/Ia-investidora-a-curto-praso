@@ -5,33 +5,40 @@
 ```text
 React/Vite :5173 -- /api proxy --> Express :8787
                                       |
-        +-- AI Gateway (mock explícito; adapter futuro ORA)
-        +-- Market Data (mock explícito; fonte licenciada futura)
+        +-- Market Data Gateway (mock ou CoinGecko real)
         +-- Analytics / Analysis Engine
-        +-- Risk Engine (limites antes de simulação)
+        +-- Risk Engine
         +-- Paper simulations / Backtests
         +-- Alerts (educacionais)
-        +-- Knowledge status (RAG preparado, sem ingestão)
+        +-- AI Gateway (investidor)
+        +-- ORA Gateway (orquestração futura)
+        |      +-- developer tools (autorização separada)
+        +-- Trade/Execution Gateway (fail-closed, desativado)
+        +-- Knowledge status (RAG preparado)
 ```
 
-`src/App.tsx` mantém a composição visual e estado efêmero. `server/index.ts` é a fronteira HTTP: valida entradas com Zod, chama módulos de domínio e nunca expõe secrets ao browser. Módulos de domínio não importam React e podem ser testados isoladamente.
+## Market Data Gateway
 
-## Contratos e honestidade de dados
+`MarketDataProvider` é o port. `MockMarketDataProvider` é o fallback explícito. `CoinGeckoMarketDataProvider` consulta o endpoint público de preços de cripto e retorna `simulated: false`, `source: coingecko` e `asOf`. A seleção é feita por `MARKET_DATA_PROVIDER=coingecko`. Para ações brasileiras, adicione um adapter licenciado (por exemplo, um fornecedor que exija `BRAPI_TOKEN`) sem colocar o token no frontend; nenhum token é fornecido pelo projeto.
 
-`MarketDataProvider` e `AIGateway` são ports. Os adapters mock retornam `source: mock`, `provider: mock` e `simulated: true`. Qualquer provider real deve validar payload externo, registrar `asOf`, respeitar licença, timeout e indisponibilidade, e manter o mesmo contrato.
+Falhas do provider real resultam em erro HTTP e não em dados silenciosamente falsos. Dados reais devem carregar origem, timestamp, moeda, licença e limites do provider.
 
-`analytics.ts` calcula retorno, máxima, mínima e volatilidade sobre uma série fornecida pelo usuário. `riskEngine.ts` calcula risco monetário, exposição, quantidade sugerida e rejeita limites básicos. `backtest.ts` é uma simulação buy-and-hold deliberadamente simples; não deve ser chamado de resultado histórico real sem candles versionados e custos configurados.
+## Trade/Execution Gateway
+
+`TradeExecutionGateway` é separado do market data. A implementação atual `DisabledTradeExecutionGateway` falha fechado e responde `realExecution: false`. A rota `/api/trade/submit` devolve 403. Uma implementação futura exige autenticação, permissões, idempotência, auditoria, limites de risco e aprovação explícita. Nunca reutilize credenciais de Market Data para execução.
+
+## ORA e IA Desenvolvedora
+
+`OraGateway` é uma fronteira independente do `AIGateway`. A capacidade `investor` não recebe acesso a execução; `developer` exige autorização humana. `DeveloperToolGateway` deve futuramente encapsular GitHub, filesystem, publicação web, criação de jogos e projetos 3D. As ações planejadas são auditáveis e permanecem desabilitadas no baseline.
+
+## Contratos
+
+- `MarketDataProvider`: dados reais ou simulados, sempre identificados.
+- `AIGateway`: respostas educacionais, sem secrets e sem ferramentas financeiras implícitas.
+- `OraGateway`: orquestração futura, separada por capacidade.
+- `TradeExecutionGateway`: execução futura, fail-closed.
+- `DeveloperToolGateway`: ferramentas de código/projeto/publicação, sempre com autorização.
 
 ## Segurança
 
-- Secrets somente no backend via `.env`; nunca em `src`.
-- CORS limitado a `CLIENT_ORIGIN` e body JSON limitado a 256 KB.
-- Schemas Zod estritos, números finitos e limites de quantidade/tamanho.
-- Nenhuma rota de corretora ou ordem real existe.
-- Erros internos não vazam stack trace ao cliente; logs do servidor não incluem payloads completos.
-
-Antes de produção ainda são necessários autenticação, autorização por workspace, rate limiting, headers de segurança, observabilidade, auditoria persistente, retenção de dados, CSRF conforme mecanismo de sessão e revisão de compliance.
-
-## Preparação para ORA e RAG
-
-ORA deve entrar somente como implementação de `AIGateway`, atrás de feature flag e avaliação offline. O gateway deverá receber contexto já redigido, aplicar timeout/retry limitado e devolver referências e origem. RAG requer ingestão segura, extração, chunking, embeddings, busca com filtros de workspace e citações; texto recuperado é dado não confiável e nunca instrução de sistema.
+Secrets só no backend via ambiente; `.env` está ignorado. CORS é restrito, body é limitado, entradas são schemas Zod estritos e a rota de execução real permanece bloqueada. Ainda são necessários autenticação, autorização por workspace, rate limiting, headers de segurança, observabilidade, auditoria persistente, retenção e revisão de compliance antes de qualquer execução real.

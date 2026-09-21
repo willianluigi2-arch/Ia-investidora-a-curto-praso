@@ -1,17 +1,6 @@
-export type MarketQuote = {
-  symbol: string
-  name: string
-  value: number
-  change: number
-  currency: 'BRL' | 'index'
-  source: 'mock'
-  simulated: true
-  asOf: string
-}
-
+export type MarketQuote = { symbol: string; name: string; value: number; change: number; currency: 'BRL' | 'USD' | 'index'; source: 'mock' | 'coingecko'; simulated: boolean; asOf: string }
 export interface MarketDataProvider { overview(): Promise<MarketQuote[]> }
 
-/** Deliberately simulated dataset. It must never be presented as live market data. */
 export class MockMarketDataProvider implements MarketDataProvider {
   async overview(): Promise<MarketQuote[]> {
     const asOf = new Date().toISOString()
@@ -19,8 +8,28 @@ export class MockMarketDataProvider implements MarketDataProvider {
       { symbol: 'IBOV', name: 'Ibovespa (simulado)', value: 128946, change: 1.24, currency: 'index', source: 'mock', simulated: true, asOf },
       { symbol: 'DOL', name: 'Dólar comercial (simulado)', value: 5.18, change: -0.38, currency: 'BRL', source: 'mock', simulated: true, asOf },
       { symbol: 'PETR4', name: 'Petrobras PN (simulado)', value: 38.72, change: 2.16, currency: 'BRL', source: 'mock', simulated: true, asOf },
-      { symbol: 'VALE3', name: 'Vale ON (simulado)', value: 61.48, change: 0.84, currency: 'BRL', source: 'mock', simulated: true, asOf },
-      { symbol: 'ITUB4', name: 'Itaú Unibanco (simulado)', value: 35.09, change: -0.21, currency: 'BRL', source: 'mock', simulated: true, asOf },
     ]
   }
+}
+
+const cryptoAssets = [{ id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' }, { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' }]
+export class CoinGeckoMarketDataProvider implements MarketDataProvider {
+  constructor(private readonly baseUrl = 'https://api.coingecko.com/api/v3') {}
+  async overview(): Promise<MarketQuote[]> {
+    const ids = cryptoAssets.map((asset) => asset.id).join(',')
+    const response = await fetch(`${this.baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`, { signal: AbortSignal.timeout(8_000), headers: { accept: 'application/json' } })
+    if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`)
+    const payload = await response.json() as Record<string, { usd?: number; usd_24h_change?: number }>
+    const asOf = new Date().toISOString()
+    return cryptoAssets.map((asset) => {
+      const quote = payload[asset.id]
+      if (!quote?.usd || typeof quote.usd_24h_change !== 'number') throw new Error(`Invalid CoinGecko quote for ${asset.id}`)
+      return { symbol: asset.symbol, name: asset.name, value: quote.usd, change: quote.usd_24h_change, currency: 'USD', source: 'coingecko', simulated: false, asOf }
+    })
+  }
+}
+
+export function createMarketDataProvider(provider = process.env.MARKET_DATA_PROVIDER ?? 'mock'): MarketDataProvider {
+  if (provider === 'coingecko') return new CoinGeckoMarketDataProvider(process.env.COINGECKO_BASE_URL)
+  return new MockMarketDataProvider()
 }
